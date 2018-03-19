@@ -1,0 +1,11 @@
+{
+  "name": "electron-devtools-demo",
+  "version": "1.0.0",
+  "main": "main.js",
+  "repository": "https://github.com/cwoodruff/devsum17_electron.git",
+  "license": "MIT",
+  "devDependencies": {
+    "devtron": "^1.4.0",
+    "electron": "^1.6.10"
+  }
+}

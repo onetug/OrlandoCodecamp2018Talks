@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Electron IPC Demo</title>
+        <!-- Javascript -->
+        <script src="./js/menu.js" charset="utf-8"></script>
+    </head>
+    <body>
+        <h1>Electron IPC Demo</h1>
+        <p>Node.js version <script>document.write(process.versions.node)</script></p>
+        <p>Chrome version <script>document.write(process.versions.chrome)</script></p>
+        <p>Electron version <script>document.write(process.versions.electron)</script></p>
+
+        <script>
+            const ipcRenderer = require('electron').ipcRenderer;
+            console.log(ipcRenderer.sendSync('synchronous-message', 'ping'));
+            ipcRenderer.send('asynchronous-message', 'Hello from Main Window on Start!');
+            function sendMessage() {
+                ipcRenderer.send('asynchronous-message', 'Hello DevSum from Main!!');
+            }
+            function closeApp() {
+                ipcRenderer.send('close-main-window');
+            }
+        </script>
+        <input value="Send Message" type="submit" onclick="sendMessage();"></input>
+        <br/>
+        <input value="Close App" type="submit" onclick="closeApp();"></input>
+    </body>
+</html>
