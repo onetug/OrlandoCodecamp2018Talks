@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hello World!</title>
+</head>
+
+<body>
+    <h1>IPC Remote</h1>
+    <script>
+        const ipcRenderer = require('electron').ipcRenderer;
+        ipcRenderer.on('asynchronous-reply', function (event, arg) {
+            console.log(arg); // prints "pong"
+        });
+    </script>
+</body>
+
+</html>

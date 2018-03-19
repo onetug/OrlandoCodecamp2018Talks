@@ -1,0 +1,15 @@
+{
+    "name": "electron-packaging-demo",
+    "version": "1.0.0",
+    "description": "Am Electron Packaging demo",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron ."
+    },
+    "repository": "https://github.com/cwoodruff/devsum17_electron.git",
+    "author": "cwoodruff",
+    "license": "MIT",
+    "devDependencies": {
+        "electron": "~1.6.10"
+    }
+}
