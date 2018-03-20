@@ -1,0 +1,462 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Environment": {
+      "type": "string",
+      "metadata": {
+        "description": "Which Environment To Deploy To?"
+      },
+      "allowedValues": [
+        "DEV",
+        "QA",
+        "RC",
+        "PROD"
+      ]
+    },
+    "Simple-Demo-Tier": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+    "Simple-Demo-Size": {
+      "type": "string",
+      "defaultValue": "S2",
+      "metadata": {
+        "description": "Describes plan's pricing tier and capacity. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+      },
+      "allowedValues": [
+        "S1",
+        "S2",
+        "S3"
+      ]
+    },
+    "Simple-Demo-Family": {
+      "type": "string",
+      "defaultValue": "S"
+    },
+    "Simple-Demo-Capacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "Describes plan's instance count"
+      }
+    },
+    "AppSetting-Node-Version": {
+      "type": "string",
+      "defaultValue": "8.4.1"
+    },
+    "AppSetting-CustomValue": {
+      "type": "string",
+      "defaultValue": "Custom"
+    },
+    "SQL-Admin-Username": {
+      "type": "string",
+      "defaultValue": "sdadmin"
+    },
+    "SQL-Admin-Password": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "Simple-Demo-AppInsights-Name": "[concat( parameters('Environment'), '-Simple-Demo-AppInsights' )]",
+    "Simple-Demo-Service-Plan-Name": "[concat( parameters('Environment'), '-Simple-Demo-ServicePlan' )]",
+    "Simple-Demo-App-Service-Name": "[concat( parameters('Environment'), '-Simple-Demo-Website' )]",
+    "SQL-Server-Name": "[concat( toLower(parameters('Environment')), '-simple-demo-sql-server')]",
+    "SQL-DB-Name": "[concat( toLower(parameters('Environment')), '-simple-demo-db')]",
+    "Data-Storage-Name": "[concat( toLower(parameters('Environment')), 'simpledemodata')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[variables('Simple-Demo-AppInsights-Name')]",
+      "type": "Microsoft.Insights/components",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]": "Resource",
+        "displayName": "Simple Demo App Insights"
+      },
+      "properties": {
+        "applicationId": "[variables('Simple-Demo-App-Service-Name')]"
+      }
+    },
+    {
+      "apiVersion": "2016-09-01",
+      "name": "[variables('Simple-Demo-Service-Plan-Name')]",
+      "type": "Microsoft.Web/serverfarms",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "Simple Demo Service Plan"
+      },
+      "sku": {
+        "name": "[parameters('Simple-Demo-Size')]",
+        "tier": "[parameters('Simple-Demo-Tier')]",
+        "size": "[parameters('Simple-Demo-Size')]",
+        "family": "[parameters('Simple-Demo-Family')]",
+        "capacity": 1
+      },
+      "properties": {
+        "name": "[variables('Simple-Demo-Service-Plan-Name')]"
+      }
+    },
+    {
+      "apiVersion": "2015-08-01",
+      "name": "[variables('Simple-Demo-App-Service-Name')]",
+      "type": "Microsoft.Web/sites",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverFarms/', variables('Simple-Demo-Service-Plan-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]": "empty",
+        "displayName": "Simple Demo Web App"
+      },
+      "properties": {
+        "name": "[variables('Simple-Demo-App-Service-Name')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('Simple-Demo-Service-Plan-Name'))]",
+        "clientAffinityEnabled": false
+      },
+      "resources": [
+        {
+          "apiVersion": "2015-08-01",
+          "name": "web",
+          "type": "config",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', variables('Simple-Demo-App-Service-Name'))]"
+          ],
+          "tags": {
+            "displayName": "General Settings"
+          },
+          "properties": {
+            "phpVersion": "null",
+            "netFrameworkVersion": "v4.7",
+            "use32BitWorkerProcess": false,
+            "webSocketsEnabled": false,
+            "alwaysOn": true,
+            "remoteDebuggingEnabled": false,
+            "remoteDebuggingVersion": "VS2017",
+            "virtualApplications": [
+              {
+                "virtualPath": "/",
+                "physicalPath": "site\\wwwroot"
+              }
+            ]
+          }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "name": "appsettings",
+          "type": "config",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', variables('Simple-Demo-App-Service-Name'))]"
+          ],
+          "tags": {
+            "displayName": "Application Settings"
+          },
+          "properties": {
+            "WEBSITE_NODE_DEFAULT_VERSION": "[parameters('AppSetting-Node-Version')]",
+            "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', variables('Simple-Demo-AppInsights-Name')), '2014-04-01').InstrumentationKey]",
+            "CustomValue": "[parameters('AppSetting-CustomValue')]"
+          }
+        },
+        {
+          "apiVersion": "2015-08-01",
+          "type": "config",
+          "name": "connectionstrings",
+          "tags": {
+            "displayName": "Connection Strings"
+          },
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites/', variables('Simple-Demo-App-Service-Name'))]"
+          ],
+          "properties": {
+            "Adapt2": {
+              "value": "[concat('Data Source=tcp:', reference(resourceId('Microsoft.Sql/servers/', variables('SQL-Server-Name'))).fullyQualifiedDomainName, ',1433;Initial Catalog=', variables('SQL-DB-Name'), ';User Id=', parameters('SQL-Admin-Username'), '@', variables('SQL-Server-Name'), ';Password=', parameters('SQL-Admin-Password'), ';')]",
+              "type": "SQLServer"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[variables('SQL-Server-Name')]",
+      "type": "Microsoft.Sql/servers",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01-preview",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "SQL Server"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('SQL-Admin-Username')]",
+        "administratorLoginPassword": "[parameters('SQL-Admin-Password')]"
+      },
+      "resources": [
+        {
+          "name": "[variables('SQL-DB-Name')]",
+          "type": "databases",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('SQL-Server-Name'))]"
+          ],
+          "tags": {
+            "displayName": "SQL Database"
+          },
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "edition": "Standard",
+            "maxSizeBytes": "1073741824",
+            "requestedServiceObjectiveName": "S0"
+          }
+        },
+        {
+          "name": "AllowAllWindowsAzureIps",
+          "type": "firewallrules",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('SQL-Server-Name'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        },
+        {
+          "name": "Custom Home IP Range",
+          "type": "firewallrules",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('SQL-Server-Name'))]"
+          ],
+          "properties": {
+            "startIpAddress": "155.201.42.0",
+            "endIpAddress": "155.201.42.255"
+          }
+        }
+      ]
+    },
+    {
+      "name": "[variables('Data-Storage-Name')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "Data Storage"
+      },
+      "kind": "Storage"
+    },
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[concat(variables('Simple-Demo-Service-Plan-Name'), '-', resourceGroup().name)]",
+      "type": "Microsoft.Insights/autoscalesettings",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]": "Resource",
+        "displayName": "AutoScale Settings - CPU > 80%"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]"
+      ],
+      "properties": {
+        "profiles": [
+          {
+            "name": "Default",
+            "capacity": {
+              "minimum": 1,
+              "maximum": 2,
+              "default": 1
+            },
+            "rules": [
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricResourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT10M",
+                  "timeAggregation": "Average",
+                  "operator": "GreaterThan",
+                  "threshold": 80.0
+                },
+                "scaleAction": {
+                  "direction": "Increase",
+                  "type": "ChangeCount",
+                  "value": 1,
+                  "cooldown": "PT10M"
+                }
+              },
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricResourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT1H",
+                  "timeAggregation": "Average",
+                  "operator": "LessThan",
+                  "threshold": 60.0
+                },
+                "scaleAction": {
+                  "direction": "Decrease",
+                  "type": "ChangeCount",
+                  "value": 1,
+                  "cooldown": "PT1H"
+                }
+              }
+            ]
+          }
+        ],
+        "enabled": false,
+        "name": "[concat(variables('Simple-Demo-Service-Plan-Name'), '-', resourceGroup().name)]",
+        "targetResourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]"
+      }
+    },
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[concat('ServerErrors ', variables('Simple-Demo-App-Service-Name'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]": "Resource",
+        "displayName": "Alert Rule - Server 5xx Errors"
+      },
+      "properties": {
+        "name": "[concat('ServerErrors ', variables('Simple-Demo-App-Service-Name'))]",
+        "description": "[concat(variables('Simple-Demo-App-Service-Name'), ' has some server errors, status code 5xx.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]",
+            "metricName": "Http5xx"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0.0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[concat('ForbiddenRequests ', variables('Simple-Demo-App-Service-Name'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]": "Resource",
+        "displayName": "Alert Rule - Forbidden Requests"
+      },
+      "properties": {
+        "name": "[concat('ForbiddenRequests ', variables('Simple-Demo-App-Service-Name'))]",
+        "description": "[concat(variables('Simple-Demo-App-Service-Name'), ' has some requests that are forbidden, status code 403.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('Simple-Demo-App-Service-Name'))]",
+            "metricName": "Http403"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[concat('CPUHigh ', variables('Simple-Demo-Service-Plan-Name'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]": "Resource",
+        "displayName": "Alert Rule - CPU > 90 For 15m"
+      },
+      "properties": {
+        "name": "[concat('CPUHigh ', variables('Simple-Demo-Service-Plan-Name'))]",
+        "description": "[concat('The average CPU is high across all the instances of ', variables('Simple-Demo-Service-Plan-Name'))]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]",
+            "metricName": "CpuPercentage"
+          },
+          "operator": "GreaterThan",
+          "threshold": 90,
+          "windowSize": "PT15M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "apiVersion": "2014-04-01",
+      "name": "[concat('LongHttpQueue ', variables('Simple-Demo-Service-Plan-Name'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]": "Resource",
+        "displayName": "Alert Rule - Http Queue > 100 for 5m"
+      },
+      "properties": {
+        "name": "[concat('LongHttpQueue ', variables('Simple-Demo-Service-Plan-Name'))]",
+        "description": "[concat('The HTTP queue for the instances of ', variables('Simple-Demo-Service-Plan-Name'), ' has a large number of pending requests.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('Simple-Demo-Service-Plan-Name'))]",
+            "metricName": "HttpQueueLength"
+          },
+          "operator": "GreaterThan",
+          "threshold": 100.0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    }
+
+  ]
+}
