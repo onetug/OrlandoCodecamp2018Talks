@@ -1,0 +1,11 @@
+## - Ubuntu - 02/22/2018
+
+## - Mount-UnMount Windows shared folders:
+
+sudo mount -t cifs -o rw,user=max_t,vers=3.0 //sapien01/TempSQLBackups /var/opt/mssql/TempSQLBackups
+
+sudo umount /var/opt/mssql/TempSQLBackups
+
+sudo mount -t cifs -o rw,user=max_t,vers=3.0 //sapien01/OrlandoCodeCamp2018 /home/maxt/Documents/Scripts
+
+sudo umount /home/maxt/Documents/Scripts
